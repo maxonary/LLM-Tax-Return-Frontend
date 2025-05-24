@@ -17,7 +17,7 @@ export default function NewInvoicePage() {
   }
 
   return (
-    <main className="container mx-auto py-8">
+    <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-8">
         <Button asChild variant="ghost" className="mb-4">
           <Link href="/">

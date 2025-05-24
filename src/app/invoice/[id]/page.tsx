@@ -8,6 +8,18 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { updateInvoiceStatus } from "@/app/actions";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { CalendarIcon, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function InvoicePage({
   params,
@@ -20,6 +32,9 @@ export default function InvoicePage({
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedInvoice, setEditedInvoice] = useState<Invoice | null>(null);
+  const [date, setDate] = useState<Date>();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -44,7 +59,10 @@ export default function InvoicePage({
           throw new Error("Invoice not found");
         }
 
-        setInvoice(data as Invoice);
+        const invoiceData = data as Invoice;
+        setInvoice(invoiceData);
+        setEditedInvoice(invoiceData);
+        setDate(new Date(invoiceData.date));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load invoice");
       } finally {
@@ -72,8 +90,59 @@ export default function InvoicePage({
         .single();
 
       setInvoice(data as Invoice);
+      setEditedInvoice(data as Invoice);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status");
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editedInvoice) return;
+
+    try {
+      const { error } = await supabase
+        .from("invoices")
+        .update({
+          ...editedInvoice,
+          date: date?.toISOString(),
+          signingData: {
+            signedBy: user?.email || "System",
+            signedAt: new Date().toISOString(),
+          },
+        })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setInvoice(editedInvoice);
+      setIsEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    }
+  };
+
+  const handleInputChange = (
+    field: keyof Invoice | string,
+    value: string | number | string[] | Date | object
+  ) => {
+    if (!editedInvoice) return;
+
+    if (field.startsWith("location.")) {
+      const locationField = field.split(
+        "."
+      )[1] as keyof typeof editedInvoice.location;
+      setEditedInvoice({
+        ...editedInvoice,
+        location: {
+          ...editedInvoice.location,
+          [locationField]: value,
+        },
+      });
+    } else {
+      setEditedInvoice({
+        ...editedInvoice,
+        [field]: value,
+      });
     }
   };
 
@@ -95,7 +164,7 @@ export default function InvoicePage({
     );
   }
 
-  if (!invoice) {
+  if (!invoice || !editedInvoice) {
     return (
       <div className="container mx-auto py-8">
         <div className="text-center">Invoice not found</div>
@@ -104,120 +173,221 @@ export default function InvoicePage({
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="flex justify-between items-start mb-6">
-          <h1 className="text-2xl font-bold">{invoice.reason}</h1>
-          <span
-            className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-              invoice.status === "approved"
-                ? "bg-green-100 text-green-800"
-                : invoice.status === "cancelled"
-                ? "bg-red-100 text-red-800"
-                : "bg-yellow-100 text-yellow-800"
-            }`}
-          >
-            {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-          </span>
+    <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <Button asChild variant="ghost" className="mb-4">
+          <Link href="/" className="flex items-center">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Invoices
+          </Link>
+        </Button>
+        <h1 className="text-3xl font-bold">Invoice Details</h1>
+      </div>
+
+      <div className="max-w-7xl mx-auto grid grid-cols-2 gap-8">
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          {invoice.pdfUrl && (
+            <iframe
+              src={`${invoice.pdfUrl}#toolbar=0&navpanes=0`}
+              className="w-full h-full min-h-[800px]"
+              title="Invoice PDF"
+            />
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-6 mb-6">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">Amount</h2>
-            <p className="text-xl font-bold">
-              ${invoice.amount.toFixed(2)}
-              {invoice.tipAmount > 0 && (
-                <span className="text-sm font-normal text-gray-500 ml-2">
-                  + ${invoice.tipAmount.toFixed(2)} tip
-                </span>
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex gap-2">
+              {isEditing ? (
+                <>
+                  <Button
+                    onClick={handleSave}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditedInvoice(invoice);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setIsEditing(true)}>Edit</Button>
               )}
-            </p>
+            </div>
           </div>
 
-          <div>
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">Date</h2>
-            <p>{format(new Date(invoice.date), "PPP")}</p>
-          </div>
+          <div className="space-y-4">
+            <div>
+              <Label>Reason</Label>
+              <Input
+                value={editedInvoice.reason}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleInputChange("reason", e.target.value)
+                }
+                disabled={!isEditing}
+              />
+            </div>
 
-          {invoice.location && (
-            <div className="col-span-2">
-              <h2 className="text-sm font-semibold text-gray-500 mb-2">
-                Location
-              </h2>
-              <div>
-                {invoice.location.name && <p>{invoice.location.name}</p>}
-                {invoice.location.street && <p>{invoice.location.street}</p>}
-                <p>
-                  {[
-                    invoice.location.city,
-                    invoice.location.state,
-                    invoice.location.postalCode,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                </p>
-                {invoice.location.country && <p>{invoice.location.country}</p>}
+            <div>
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                value={editedInvoice.amount}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleInputChange("amount", parseFloat(e.target.value))
+                }
+                disabled={!isEditing}
+              />
+            </div>
+
+            <div>
+              <Label>Tip Amount</Label>
+              <Input
+                type="number"
+                value={editedInvoice.tipAmount}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleInputChange("tipAmount", parseFloat(e.target.value))
+                }
+                disabled={!isEditing}
+              />
+            </div>
+
+            <div>
+              <Label>Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !date && "text-muted-foreground"
+                    )}
+                    disabled={!isEditing}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div>
+              <Label>Location</Label>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Name"
+                  value={editedInvoice.location?.name || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleInputChange("location.name", e.target.value)
+                  }
+                  disabled={!isEditing}
+                />
+                <Input
+                  placeholder="Street"
+                  value={editedInvoice.location?.street || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleInputChange("location.street", e.target.value)
+                  }
+                  disabled={!isEditing}
+                />
+                <Input
+                  placeholder="City"
+                  value={editedInvoice.location?.city || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleInputChange("location.city", e.target.value)
+                  }
+                  disabled={!isEditing}
+                />
+                <Input
+                  placeholder="State"
+                  value={editedInvoice.location?.state || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleInputChange("location.state", e.target.value)
+                  }
+                  disabled={!isEditing}
+                />
+                <Input
+                  placeholder="Postal Code"
+                  value={editedInvoice.location?.postalCode || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleInputChange("location.postalCode", e.target.value)
+                  }
+                  disabled={!isEditing}
+                />
+                <Input
+                  placeholder="Country"
+                  value={editedInvoice.location?.country || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleInputChange("location.country", e.target.value)
+                  }
+                  disabled={!isEditing}
+                />
               </div>
             </div>
-          )}
 
-          <div className="col-span-2">
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">
-              Participants
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {invoice.participants.map((participant, index) => (
-                <span
-                  key={index}
-                  className="bg-gray-100 px-3 py-1 rounded-full text-sm"
-                >
-                  {participant}
-                </span>
-              ))}
+            <div>
+              <Label>Participants</Label>
+              <Textarea
+                value={editedInvoice.participants.join(", ")}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  handleInputChange(
+                    "participants",
+                    e.target.value.split(",").map((p) => p.trim())
+                  )
+                }
+                disabled={!isEditing}
+              />
             </div>
-          </div>
-        </div>
 
-        {invoice.status === "pending" && (
-          <div className="flex gap-4 mt-8">
-            <Button
-              onClick={() => handleStatusUpdate("approved")}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Approve
-            </Button>
-            <Button
-              onClick={() => handleStatusUpdate("cancelled")}
-              variant="destructive"
-            >
-              Cancel
-            </Button>
-          </div>
-        )}
+            <div>
+              <Label>Status</Label>
+              <div
+                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                  invoice.status === "approved"
+                    ? "bg-green-100 text-green-800"
+                    : invoice.status === "cancelled"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}
+              >
+                {invoice.status.charAt(0).toUpperCase() +
+                  invoice.status.slice(1)}
+              </div>
+            </div>
 
-        {invoice.pdfUrl && (
-          <div className="mt-8">
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">
-              Invoice PDF
-            </h2>
-            <a
-              href={invoice.pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline"
-            >
-              View PDF
-            </a>
+            {invoice.status === "pending" && (
+              <div className="flex gap-4 mt-8">
+                <Button
+                  onClick={() => handleStatusUpdate("approved")}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Approve
+                </Button>
+                <Button
+                  onClick={() => handleStatusUpdate("cancelled")}
+                  variant="destructive"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-
-        <div className="mt-8 pt-6 border-t text-sm text-gray-500">
-          <p>
-            Last updated by {invoice.signingData.signedBy} on{" "}
-            {format(new Date(invoice.signingData.signedAt), "PPP")}
-          </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
