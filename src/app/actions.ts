@@ -5,9 +5,7 @@ import { InvoiceStatus } from "@/types/invoice";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
-export async function createInvoice(
-  formData: FormData
-): Promise<{ success: boolean; error?: string }> {
+export async function createInvoice(formData: FormData) {
   try {
     const cookieStore = cookies();
     const supabase = createServerActionClient({ cookies: () => cookieStore });
@@ -18,96 +16,59 @@ export async function createInvoice(
       error: authError,
     } = await supabase.auth.getSession();
 
-    console.log("Auth check:", {
-      session: session ? "exists" : "null",
-      userId: session?.user?.id,
-      authError,
-    });
-
     if (authError || !session?.user) {
       throw new Error("Not authenticated");
     }
 
-    const pdfFile = formData.get("pdf") as File;
-    if (!pdfFile) {
-      throw new Error("PDF file is required");
-    }
+    // Parse the data from FormData
+    const amount = parseFloat(formData.get("amount") as string);
+    const tipAmount = parseFloat(formData.get("tipAmount") as string) || 0;
+    const date = new Date(formData.get("date") as string);
+    const reason = formData.get("reason") as string;
+    const category = formData.get("category") as string;
+    const pdfUrl = formData.get("pdfUrl") as string;
 
-    // Upload PDF to Supabase Storage
-    const { data: fileData, error: uploadError } = await supabase.storage
-      .from("invoices")
-      .upload(`${Date.now()}-${pdfFile.name}`, pdfFile);
-
-    console.log("File upload:", {
-      success: !!fileData,
-      error: uploadError,
-    });
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    // Get the public URL for the uploaded file
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("invoices").getPublicUrl(fileData.path);
-
+    // Parse participants from the comma-separated string
     const participants = (formData.get("participants") as string)
       .split(",")
-      .map((p) => p.trim());
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
 
-    // Create location object only if any location field is provided
-    const locationName = formData.get("locationName") as string;
-    const street = formData.get("street") as string;
-    const city = formData.get("city") as string;
-    const state = formData.get("state") as string;
-    const country = formData.get("country") as string;
-    const postalCode = formData.get("postalCode") as string;
+    // Parse location data
+    const locationData = {
+      name: formData.get("locationName") as string,
+      street: formData.get("street") as string,
+      city: formData.get("city") as string,
+      state: formData.get("state") as string,
+      country: formData.get("country") as string,
+      postalCode: formData.get("postalCode") as string,
+    };
 
-    const location =
-      locationName || street || city || state || country || postalCode
-        ? {
-            name: locationName || undefined,
-            street: street || undefined,
-            city: city || undefined,
-            state: state || undefined,
-            country: country || undefined,
-            postalCode: postalCode || undefined,
-          }
-        : undefined;
+    // Only include location if at least one field is filled
+    const location = Object.values(locationData).some((v) => v)
+      ? locationData
+      : null;
 
     const invoice = {
-      amount: parseFloat(formData.get("amount") as string),
-      tipAmount: parseFloat(formData.get("tipAmount") as string) || 0,
-      date: new Date(formData.get("date") as string),
-      location,
-      reason: formData.get("reason") as string,
+      amount,
+      tipAmount,
+      date,
+      reason,
+      category,
       participants,
+      location,
+      pdfUrl,
+      status: "pending" as InvoiceStatus,
+      user_id: session.user.id,
       signingData: {
         signedBy: session.user.email || "System",
         signedAt: new Date(),
       },
-      status: "pending" as InvoiceStatus,
-      pdfUrl: publicUrl,
-      user_id: session.user.id,
     };
 
-    console.log("Creating invoice:", invoice);
+    const { error } = await supabase.from("invoices").insert([invoice]);
 
-    const { error: insertError, data: insertData } = await supabase
-      .from("invoices")
-      .insert([invoice])
-      .select();
-
-    console.log("Insert result:", {
-      success: !!insertData,
-      error: insertError,
-      data: insertData,
-    });
-
-    if (insertError) {
-      throw insertError;
-    }
+    if (error) throw error;
 
     revalidatePath("/");
     return { success: true };
@@ -115,7 +76,8 @@ export async function createInvoice(
     console.error("Error creating invoice:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      error:
+        error instanceof Error ? error.message : "Failed to create invoice",
     };
   }
 }

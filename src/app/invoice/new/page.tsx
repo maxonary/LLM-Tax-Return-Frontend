@@ -1,32 +1,137 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Navigation } from "@/components/ui/navigation";
 import { createInvoice } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { InvoiceCategory } from "@/types/invoice";
+
+const CATEGORIES: InvoiceCategory[] = [
+  "Travel",
+  "Meals and Entertainment",
+  "Office Supplies",
+  "Equipment",
+  "Utilities",
+  "Professional Services",
+  "Marketing and Advertising",
+  "Training and Development",
+  "Insurance",
+  "Miscellaneous",
+];
 
 export default function NewInvoicePage() {
-  async function handleSubmit(formData: FormData) {
-    "use server";
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const supabase = createClientComponentClient();
 
-    const result = await createInvoice(formData);
-    if (result.success) {
-      redirect("/");
-    } else {
-      console.error(result.error);
+  useEffect(() => {
+    if (!user && !authLoading) {
+      router.push("/login");
     }
+  }, [user, authLoading, router]);
+
+  async function handleSubmit(formData: FormData) {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Upload file to Supabase Storage
+      const pdfFile = formData.get("pdf") as File;
+      if (!pdfFile) {
+        throw new Error("PDF file is required");
+      }
+
+      const { data: fileData, error: uploadError } = await supabase.storage
+        .from("invoices")
+        .upload(`${Date.now()}-${pdfFile.name}`, pdfFile);
+
+      if (uploadError) throw uploadError;
+
+      // Get the public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("invoices").getPublicUrl(fileData.path);
+
+      // Create a new FormData with all the fields
+      const processedData = new FormData();
+      processedData.append("amount", formData.get("amount") as string);
+      processedData.append(
+        "tipAmount",
+        (formData.get("tipAmount") as string) || "0"
+      );
+      processedData.append("date", formData.get("date") as string);
+      processedData.append("reason", formData.get("reason") as string);
+      processedData.append("category", formData.get("category") as string);
+      processedData.append(
+        "participants",
+        formData.get("participants") as string
+      );
+      processedData.append("pdfUrl", publicUrl);
+
+      // Add location fields directly
+      processedData.append(
+        "locationName",
+        formData.get("locationName") as string
+      );
+      processedData.append("street", formData.get("street") as string);
+      processedData.append("city", formData.get("city") as string);
+      processedData.append("state", formData.get("state") as string);
+      processedData.append("country", formData.get("country") as string);
+      processedData.append("postalCode", formData.get("postalCode") as string);
+
+      const result = await createInvoice(processedData);
+
+      if (result.success) {
+        router.push("/");
+      } else {
+        setError(result.error || "Failed to create invoice");
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
   }
 
   return (
     <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <Navigation
+        onSignOut={async () => {
+          await supabase.auth.signOut();
+          router.push("/login");
+        }}
+      />
       <div className="mb-8">
         <Button asChild variant="ghost" className="mb-4">
-          <Link href="/">
+          <Link href="/" className="flex items-center">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Invoices
           </Link>
         </Button>
         <h1 className="text-3xl font-bold">New Invoice</h1>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 text-red-700 bg-red-100 rounded-md">
+          {error}
+        </div>
+      )}
 
       <div className="max-w-2xl mx-auto">
         <form
@@ -73,6 +178,25 @@ export default function NewInvoicePage() {
               required
               className="block w-full rounded-md border border-gray-200 px-4 py-2"
             />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="category" className="block text-sm font-medium">
+              Category
+            </label>
+            <select
+              id="category"
+              name="category"
+              required
+              className="block w-full rounded-md border border-gray-200 px-4 py-2"
+            >
+              <option value="">Select a category</option>
+              {CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
