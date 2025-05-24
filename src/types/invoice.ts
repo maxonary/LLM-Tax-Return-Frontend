@@ -1,4 +1,4 @@
-export type InvoiceStatus = 'pending' | 'approved' | 'cancelled';
+export type InvoiceStatus = "pending" | "approved" | "cancelled";
 
 export interface Location {
   name: string;
@@ -28,4 +28,4 @@ export interface Invoice {
   pdfUrl: string;
   createdAt: Date;
   updatedAt: Date;
-} 
+}
