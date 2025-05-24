@@ -1,13 +1,33 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
-import { Invoice, InvoiceStatus } from "@/types/invoice";
+import { createServerActionClient } from "@supabase/auth-helpers-nextjs";
+import { InvoiceStatus } from "@/types/invoice";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 export async function createInvoice(
   formData: FormData
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const cookieStore = cookies();
+    const supabase = createServerActionClient({ cookies: () => cookieStore });
+
+    // Get the current user
+    const {
+      data: { session },
+      error: authError,
+    } = await supabase.auth.getSession();
+
+    console.log("Auth check:", {
+      session: session ? "exists" : "null",
+      userId: session?.user?.id,
+      authError,
+    });
+
+    if (authError || !session?.user) {
+      throw new Error("Not authenticated");
+    }
+
     const pdfFile = formData.get("pdf") as File;
     if (!pdfFile) {
       throw new Error("PDF file is required");
@@ -17,6 +37,11 @@ export async function createInvoice(
     const { data: fileData, error: uploadError } = await supabase.storage
       .from("invoices")
       .upload(`${Date.now()}-${pdfFile.name}`, pdfFile);
+
+    console.log("File upload:", {
+      success: !!fileData,
+      error: uploadError,
+    });
 
     if (uploadError) {
       throw uploadError;
@@ -51,7 +76,7 @@ export async function createInvoice(
           }
         : undefined;
 
-    const invoice: Omit<Invoice, "id" | "createdAt" | "updatedAt"> = {
+    const invoice = {
       amount: parseFloat(formData.get("amount") as string),
       tipAmount: parseFloat(formData.get("tipAmount") as string) || 0,
       date: new Date(formData.get("date") as string),
@@ -59,16 +84,26 @@ export async function createInvoice(
       reason: formData.get("reason") as string,
       participants,
       signingData: {
-        signedBy: "System",
+        signedBy: session.user.email || "System",
         signedAt: new Date(),
       },
       status: "pending" as InvoiceStatus,
       pdfUrl: publicUrl,
+      user_id: session.user.id,
     };
 
-    const { error: insertError } = await supabase
+    console.log("Creating invoice:", invoice);
+
+    const { error: insertError, data: insertData } = await supabase
       .from("invoices")
-      .insert([invoice]);
+      .insert([invoice])
+      .select();
+
+    console.log("Insert result:", {
+      success: !!insertData,
+      error: insertError,
+      data: insertData,
+    });
 
     if (insertError) {
       throw insertError;
@@ -90,16 +125,28 @@ export async function updateInvoiceStatus(
   status: InvoiceStatus
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const cookieStore = cookies();
+    const supabase = createServerActionClient({ cookies: () => cookieStore });
+
+    const {
+      data: { session },
+      error: authError,
+    } = await supabase.auth.getSession();
+    if (authError || !session?.user) {
+      throw new Error("Not authenticated");
+    }
+
     const { error } = await supabase
       .from("invoices")
       .update({
         status,
         signingData: {
-          signedBy: "System",
+          signedBy: session.user.email || "System",
           signedAt: new Date(),
         },
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", session.user.id); // Only update if the invoice belongs to the user
 
     if (error) {
       throw error;

@@ -1,19 +1,3 @@
--- Rename columns to match TypeScript interface
-ALTER TABLE invoices
-  RENAME COLUMN tip_amount TO "tipAmount";
-
-ALTER TABLE invoices
-  RENAME COLUMN signing_data TO "signingData";
-
-ALTER TABLE invoices
-  RENAME COLUMN pdf_url TO "pdfUrl";
-
-ALTER TABLE invoices
-  RENAME COLUMN created_at TO "createdAt";
-
-ALTER TABLE invoices
-  RENAME COLUMN updated_at TO "updatedAt";
-
 -- Make location field optional
 ALTER TABLE invoices
   ALTER COLUMN location DROP NOT NULL;
@@ -37,43 +21,51 @@ CREATE TRIGGER update_invoices_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Drop existing RLS policies
-DROP POLICY IF EXISTS "Allow authenticated users to read invoices" ON invoices;
-DROP POLICY IF EXISTS "Allow authenticated users to insert invoices" ON invoices;
-DROP POLICY IF EXISTS "Allow authenticated users to update invoices" ON invoices;
+DROP POLICY IF EXISTS "Enable read access for own invoices" ON invoices;
+DROP POLICY IF EXISTS "Enable insert access for own invoices" ON invoices;
+DROP POLICY IF EXISTS "Enable update access for own invoices" ON invoices;
+
+-- First, disable RLS to make changes
+ALTER TABLE invoices DISABLE ROW LEVEL SECURITY;
+
+-- Add user_id to invoices table to track ownership if it doesn't exist
+ALTER TABLE invoices 
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
 -- Enable RLS
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- Create new RLS policies with proper auth checks
-CREATE POLICY "Enable read access for all users"
+-- Create basic policies that don't require user_id match for testing
+CREATE POLICY "Enable read access for authenticated users"
   ON invoices FOR SELECT
+  TO authenticated
   USING (true);
 
 CREATE POLICY "Enable insert access for authenticated users"
   ON invoices FOR INSERT
+  TO authenticated
   WITH CHECK (true);
 
 CREATE POLICY "Enable update access for authenticated users"
   ON invoices FOR UPDATE
+  TO authenticated
   USING (true);
 
--- Update storage policies
-DROP POLICY IF EXISTS "Allow authenticated users to upload PDFs" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public to view PDFs" ON storage.objects;
-
--- Make sure the storage bucket exists
+-- Make sure the storage bucket exists and is public for now
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('invoices', 'invoices', true)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Storage Policies
+-- Drop existing storage policies
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON storage.objects;
+DROP POLICY IF EXISTS "Enable insert access for authenticated users" ON storage.objects;
+
+-- Create more permissive storage policies for testing
 CREATE POLICY "Enable read access for all users"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'invoices');
 
 CREATE POLICY "Enable insert access for authenticated users"
   ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'invoices' 
-    AND (LOWER(storage.extension(name)) = '.pdf')
-  ); 
+  TO authenticated
+  WITH CHECK (bucket_id = 'invoices'); 

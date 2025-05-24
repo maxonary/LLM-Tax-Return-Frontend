@@ -28,4 +28,5 @@ export interface Invoice {
   pdfUrl: string;
   createdAt: Date;
   updatedAt: Date;
+  user_id: string;
 }

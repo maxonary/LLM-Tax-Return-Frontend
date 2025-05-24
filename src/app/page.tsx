@@ -1,33 +1,83 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
 import { Invoice } from "@/types/invoice";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { LogOut, Plus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-async function getInvoices(): Promise<Invoice[]> {
-  const { data, error } = await supabase
-    .from("invoices")
-    .select("*")
-    .order("createdAt", { ascending: false });
+export default function HomePage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClientComponentClient();
 
-  if (error) throw error;
-  return data as Invoice[];
-}
+  useEffect(() => {
+    if (!user && !authLoading) {
+      router.push("/login");
+      return;
+    }
 
-export default async function HomePage() {
-  const invoices = await getInvoices();
+    async function loadInvoices() {
+      try {
+        const { data, error } = await supabase
+          .from("invoices")
+          .select("*")
+          .eq("user_id", user?.id)
+          .order("createdAt", { ascending: false });
+
+        if (error) {
+          console.error("Error loading invoices:", error);
+          return;
+        }
+
+        setInvoices(data as Invoice[]);
+      } catch (error) {
+        console.error("Error:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (user) {
+      loadInvoices();
+    }
+  }, [user, authLoading, router]);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return (
     <main className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Invoices</h1>
-        <Button asChild>
-          <Link href="/invoice/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New Invoice
-          </Link>
-        </Button>
+        <div className="flex gap-4">
+          <Button asChild>
+            <Link href="/invoice/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Invoice
+            </Link>
+          </Button>
+          <Button variant="outline" onClick={handleSignOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4">
