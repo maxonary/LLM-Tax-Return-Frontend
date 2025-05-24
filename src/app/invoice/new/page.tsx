@@ -112,7 +112,6 @@ export default function NewInvoicePage() {
                 type="text"
                 id="locationName"
                 name="locationName"
-                required
                 className="block w-full rounded-md border border-gray-200 px-4 py-2"
               />
             </div>
@@ -125,7 +124,6 @@ export default function NewInvoicePage() {
                 type="text"
                 id="street"
                 name="street"
-                required
                 className="block w-full rounded-md border border-gray-200 px-4 py-2"
               />
             </div>
@@ -139,7 +137,6 @@ export default function NewInvoicePage() {
                   type="text"
                   id="city"
                   name="city"
-                  required
                   className="block w-full rounded-md border border-gray-200 px-4 py-2"
                 />
               </div>
@@ -166,7 +163,6 @@ export default function NewInvoicePage() {
                   type="text"
                   id="postalCode"
                   name="postalCode"
-                  required
                   className="block w-full rounded-md border border-gray-200 px-4 py-2"
                 />
               </div>
@@ -179,7 +175,6 @@ export default function NewInvoicePage() {
                   type="text"
                   id="country"
                   name="country"
-                  required
                   className="block w-full rounded-md border border-gray-200 px-4 py-2"
                 />
               </div>

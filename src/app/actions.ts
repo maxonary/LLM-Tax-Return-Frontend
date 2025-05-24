@@ -31,18 +31,31 @@ export async function createInvoice(
       .split(",")
       .map((p) => p.trim());
 
+    // Create location object only if any location field is provided
+    const locationName = formData.get("locationName") as string;
+    const street = formData.get("street") as string;
+    const city = formData.get("city") as string;
+    const state = formData.get("state") as string;
+    const country = formData.get("country") as string;
+    const postalCode = formData.get("postalCode") as string;
+
+    const location =
+      locationName || street || city || state || country || postalCode
+        ? {
+            name: locationName || undefined,
+            street: street || undefined,
+            city: city || undefined,
+            state: state || undefined,
+            country: country || undefined,
+            postalCode: postalCode || undefined,
+          }
+        : undefined;
+
     const invoice: Omit<Invoice, "id" | "createdAt" | "updatedAt"> = {
       amount: parseFloat(formData.get("amount") as string),
       tipAmount: parseFloat(formData.get("tipAmount") as string) || 0,
       date: new Date(formData.get("date") as string),
-      location: {
-        name: formData.get("locationName") as string,
-        street: formData.get("street") as string,
-        city: formData.get("city") as string,
-        state: formData.get("state") as string,
-        country: formData.get("country") as string,
-        postalCode: formData.get("postalCode") as string,
-      },
+      location,
       reason: formData.get("reason") as string,
       participants,
       signingData: {

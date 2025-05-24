@@ -1,12 +1,12 @@
 export type InvoiceStatus = "pending" | "approved" | "cancelled";
 
 export interface Location {
-  name: string;
-  street: string;
-  city: string;
+  name?: string;
+  street?: string;
+  city?: string;
   state?: string;
-  country: string;
-  postalCode: string;
+  country?: string;
+  postalCode?: string;
 }
 
 export interface SigningData {
@@ -20,7 +20,7 @@ export interface Invoice {
   amount: number;
   tipAmount: number;
   date: Date;
-  location: Location;
+  location?: Location;
   reason: string;
   participants: string[];
   signingData: SigningData;

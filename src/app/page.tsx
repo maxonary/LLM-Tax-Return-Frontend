@@ -75,7 +75,11 @@ export default async function HomePage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-500">Location</p>
-                  <p className="text-gray-600">{invoice.location.name}</p>
+                  {invoice.location?.name ? (
+                    <p className="text-gray-600">{invoice.location.name}</p>
+                  ) : (
+                    <p className="text-gray-600">No location</p>
+                  )}
                 </div>
               </div>
             </div>

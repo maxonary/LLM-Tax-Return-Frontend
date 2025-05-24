@@ -70,15 +70,38 @@ export default async function InvoicePage({
 
             <div>
               <p className="text-sm text-gray-500">Location</p>
-              <p className="text-lg">{invoice.location.name}</p>
-              <p className="text-gray-600">
-                {invoice.location.street}
-                <br />
-                {invoice.location.city}, {invoice.location.state}{" "}
-                {invoice.location.postalCode}
-                <br />
-                {invoice.location.country}
-              </p>
+              {invoice.location ? (
+                <>
+                  {invoice.location.name && (
+                    <p className="text-lg">{invoice.location.name}</p>
+                  )}
+                  <p className="text-gray-600">
+                    {invoice.location.street && (
+                      <>
+                        {invoice.location.street}
+                        <br />
+                      </>
+                    )}
+                    {(invoice.location.city ||
+                      invoice.location.state ||
+                      invoice.location.postalCode) && (
+                      <>
+                        {[
+                          invoice.location.city,
+                          invoice.location.state,
+                          invoice.location.postalCode,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                        <br />
+                      </>
+                    )}
+                    {invoice.location.country && invoice.location.country}
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-600">No location provided</p>
+              )}
             </div>
 
             <div>
