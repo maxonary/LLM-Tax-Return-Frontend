@@ -1,12 +1,24 @@
-export type InvoiceStatus = "pending" | "approved" | "cancelled";
+export type InvoiceStatus = "pending" | "approved" | "rejected";
+
+export type InvoiceCategory =
+  | "Travel"
+  | "Meals and Entertainment"
+  | "Office Supplies"
+  | "Equipment"
+  | "Utilities"
+  | "Professional Services"
+  | "Marketing and Advertising"
+  | "Training and Development"
+  | "Insurance"
+  | "Miscellaneous";
 
 export interface Location {
-  name: string;
-  street: string;
-  city: string;
+  name?: string;
+  street?: string;
+  city?: string;
   state?: string;
-  country: string;
-  postalCode: string;
+  country?: string;
+  postalCode?: string;
 }
 
 export interface SigningData {
@@ -17,15 +29,26 @@ export interface SigningData {
 
 export interface Invoice {
   id: string;
+  user_id: string;
   amount: number;
-  tipAmount: number;
-  date: Date;
-  location: Location;
+  tipAmount?: number;
+  date: string;
   reason: string;
+  status: "pending" | "approved" | "rejected";
+  category: InvoiceCategory;
+  pdfUrl?: string;
   participants: string[];
-  signingData: SigningData;
-  status: InvoiceStatus;
-  pdfUrl: string;
-  createdAt: Date;
-  updatedAt: Date;
+  location?: {
+    name?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  signingData?: {
+    signedBy: string;
+    signedAt: string;
+  };
+  createdAt: string;
 }
