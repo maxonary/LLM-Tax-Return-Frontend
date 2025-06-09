@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-select": "^2.2.5",
@@ -19,8 +20,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "googleapis": "^149.0.0",
     "lucide-react": "^0.511.0",
     "next": "15.1.8",
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.56.4",
@@ -32,6 +36,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/pdfkit": "^0.13.9",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
